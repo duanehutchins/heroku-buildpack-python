@@ -65,8 +65,8 @@ if [ ! "$SKIP_INSTALL" ]; then
 fi
 
 
-# If Pip isn't up to date:
-if [ "$FRESH_PYTHON" ] || [[ ! $(pip --version) == *$PIP_UPDATE* ]]; then
+# If Pip isn't installed:
+if [ "$FRESH_PYTHON" ] || [[ ! -f "$BUILD_DIR/.heroku/python/bin/pip" ]]; then
 
   puts-step "Installing pip"
 

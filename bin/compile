@@ -102,7 +102,7 @@ source "$BIN_DIR/warnings"
 # to `/app`.
 # Symlinks are required, since Python is not a portable installation.
 # More on this topic later.
-mkdir -p "BUILD_DIR/.heroku"
+mkdir -p "$BUILD_DIR/.heroku"
 
 # This buildpack programatically generates (or simply copies) a number of files for
 # buildpack machinery: an export script, and a number of `.profile.d` scripts. This
@@ -184,7 +184,6 @@ else
   PYTHON_VERSION=$(cat runtime.txt)
 fi
 
-# Restore old artifacts from the cache.
 if [[ "$STACK" != "$CACHED_PYTHON_STACK" ]]; then
   puts-step "Stack has changed from $CACHED_PYTHON_STACK to $STACK, clearing cache"
 elif [ -d "$CACHE_DIR/.heroku/python" ] && [ ! -f "$CACHE_DIR/.heroku/python-sqlite3-version" ] && python_sqlite3_check "$PYTHON_VERSION"; then
@@ -194,6 +193,7 @@ elif [ -d "$CACHE_DIR/.heroku/python" ] && [ ! -f "$CACHE_DIR/.heroku/python-sql
   puts-step "Need to update SQLite3, clearing cache"
 
 else
+  # Restore old artifacts from the cache.
   # A plain text file which contains the current stack being used (used for cache busting).
   cp -R "$CACHE_DIR/.heroku/python-stack" .heroku/ &> /dev/null || true
   # A plain text file which contains the current python version being used (used for cache busting).
