@@ -2,34 +2,30 @@
 
 # Detect Python-version with Pipenv.
 
-if [[ -f "$BUILD_DIR/Pipfile" ]]; then
-
-    if [[ ! -f "$BUILD_DIR/runtime.txt" ]]; then
-        if [[ ! -f "$BUILD_DIR/Pipfile.lock" ]]; then
-            puts-warn "No 'Pipfile.lock' found! We recommend you commit this into your repository."
+if [[ -f "$BUILD_DIR/Pipfile" ]] && [[ ! -f "$BUILD_DIR/runtime.txt" ]]; then
+    if [[ ! -f "$BUILD_DIR/Pipfile.lock" ]]; then
+        puts-warn "No 'Pipfile.lock' found! We recommend you commit this into your repository."
+    else
+        set +e
+        PYTHON=$(jq -r '._meta.requires.python_full_version' "$BUILD_DIR/Pipfile.lock")
+        if [ ! "$PYTHON" ] || [[ "$PYTHON" == "null" ]]; then
+            PYTHON=$(jq -r '._meta.requires.python_version' "$BUILD_DIR/Pipfile.lock")
         fi
-        if [[ -f "$BUILD_DIR/Pipfile.lock" ]]; then
-            set +e
-            PYTHON=$(jq -r '._meta.requires.python_full_version' "$BUILD_DIR/Pipfile.lock")
-            if [[ "$PYTHON" != "null" ]]; then
-                echo "python-$PYTHON" > "$BUILD_DIR/runtime.txt"
-            fi
-            set -e
+        set -e
 
-            if [[ "$PYTHON" == "null" ]]; then
-                PYTHON=$(jq -r '._meta.requires.python_version' "$BUILD_DIR/Pipfile.lock")
-                if [ "$PYTHON" = 2.7 ]; then
-                    echo "$LATEST_2" > "$BUILD_DIR/runtime.txt"
+        # Match to the latest python version and print into runtime.txt
+        if [ "$PYTHON" ] && [[ "$PYTHON" != "null" ]]; then
+            PYTHON="python-$PYTHON"
+            PYTHON_LENGTH="${#PYTHON}"
+            for pyvar in DEFAULT_PYTHON_VERSION LATEST_2 LATEST_36 LATEST_37
+            do
+                if [[ "${!pyvar:0:${PYTHON_LENGTH}}" == "$PYTHON" ]]; then
+                    PYTHON=${!pyvar}
+                    echo "$PYTHON" > "$BUILD_DIR/runtime.txt"
+                    break
                 fi
-                if [ "$PYTHON" = 3.6 ]; then
-                    echo "$LATEST_36" > "$BUILD_DIR/runtime.txt"
-                fi
-                if [ "$PYTHON" = 3.7 ]; then
-                    echo "$LATEST_37" > "$BUILD_DIR/runtime.txt"
-                fi
-            fi
-
-
+            done
+            DEFAULT_PYTHON_VERSION="$PYTHON"
         fi
     fi
 fi

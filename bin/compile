@@ -33,7 +33,7 @@ CACHE_DIR=$2
 ENV_DIR=$3
 
 # Export Path variables, for use in sub-scripts.
-export BUILD_DIR CACHE_DIR ENV_DIR
+export BIN_DIR BUILD_DIR CACHE_DIR ENV_DIR
 
 # Set the Buildpack's internet target for downloading Python distributions.
 # The user can provide BUILDPACK_VENDOR_URL to specify a custom target.
@@ -45,14 +45,22 @@ if [[ -n ${BUILDPACK_VENDOR_URL:-} ]]; then
 fi
 export VENDOR_URL
 
+# System level python
+SYSTEM_PYTHON=$(which -a python3 | grep -m 1 ^/usr)
+SYSTEM_PYTHON_VERSION="$( "$SYSTEM_PYTHON" -V 2> /dev/null | tr 'P ' 'p-' )"
+export SYSTEM_PYTHON SYSTEM_PYTHON_VERSION
+
 # Which versions of Python are we using?
 # These variables are used to specify which versions of Python to install by default,
 # as well as prompt the user to upgrade if they are using an un–supported version.
 # Note: When 3.7 lands, I recommend switching to LATEST_36 and LATEST_37.
-DEFAULT_PYTHON_VERSION="python-3.6.6"
 LATEST_36="python-3.6.6"
 LATEST_37="python-3.7.0"
 LATEST_2="python-2.7.15"
+export RECOMMENDED_PYTHON_VERSION="${LATEST_36}"
+
+# Default to system python or recommended version
+DEFAULT_PYTHON_VERSION="${SYSTEM_PYTHON_VERSION:-RECOMMENDED_PYTHON_VERSION}"
 
 # Which stack is used (for binary downloading), if none is provided (e.g. outside of Heroku)?
 DEFAULT_PYTHON_STACK="cedar-14"
@@ -67,7 +75,6 @@ export DEFAULT_PYTHON_VERSION DEFAULT_PYTHON_STACK PIP_UPDATE LATEST_2 LATEST_36
 # the user towards resolution of known issues.
 WARNINGS_LOG=$(mktemp)
 export WARNINGS_LOG
-export RECOMMENDED_PYTHON_VERSION=$DEFAULT_PYTHON_VERSION
 
 # The buildpack ships with a few executable tools (e.g. pip-grep, etc).
 # This installs them into the path, so we can execute them directly.
@@ -88,6 +95,7 @@ unset GIT_DIR PYTHONHOME PYTHONPATH
 unset RECEIVE_DATA RUN_KEY BUILD_INFO DEPLOY LOG_TOKEN
 unset CYTOKINE_LOG_FILE GEM_PATH
 export PYTHONPATH="$BUILD_DIR"
+export PYTHONHOME="$BUILD_DIR/.heroku/python"
 
 # Import the utils script, which contains helper functions used throughout the buildpack.
 # shellcheck source=bin/utils
@@ -113,7 +121,7 @@ GUNICORN_PROFILE_PATH="$BUILD_DIR/.profile.d/python.gunicorn.sh"
 WEB_CONCURRENCY_PROFILE_PATH="$BUILD_DIR/.profile.d/WEB_CONCURRENCY.sh"
 
 # We'll need to send these statics to other scripts we `source`.
-export BUILD_DIR CACHE_DIR BIN_DIR PROFILE_PATH EXPORT_PATH
+export PROFILE_PATH EXPORT_PATH
 
 # Python Environment Variables
 # Set Python-specific environment variables, for running Python within the buildpack.
@@ -184,33 +192,32 @@ else
   PYTHON_VERSION=$(cat runtime.txt)
 fi
 
+  # Restore old artifacts from the cache.
 if [[ "$STACK" != "$CACHED_PYTHON_STACK" ]]; then
   puts-step "Stack has changed from $CACHED_PYTHON_STACK to $STACK, clearing cache"
-elif [ -d "$CACHE_DIR/.heroku/python" ] && [ ! -f "$CACHE_DIR/.heroku/python-sqlite3-version" ] && python_sqlite3_check "$PYTHON_VERSION"; then
-  # need to clear the cache for first time installing SQLite3,
-  # since the version is changing and could lead to runtime errors
-  # with compiled extensions.
-  puts-step "Need to update SQLite3, clearing cache"
+elif [ -d "$CACHE_DIR/.heroku/python" ] && [ -f "$CACHE_DIR/.heroku/python-version" ]; then
+  CACHED_PYTHON_VERSION="$(cat "$CACHE_DIR/.heroku/python-version")"
+  if [ ! -f "$CACHE_DIR/.heroku/python-sqlite3-version" ] && python_sqlite3_check "$PYTHON_VERSION"; then
+    # need to clear the cache for first time installing SQLite3,
+    # since the version is changing and could lead to runtime errors
+    # with compiled extensions.
+    puts-step "Need to update SQLite3, clearing cache"
 
-else
-  # Restore old artifacts from the cache.
-  # A plain text file which contains the current stack being used (used for cache busting).
-  cp -R "$CACHE_DIR/.heroku/python-stack" .heroku/ &> /dev/null || true
-  # A plain text file which contains the current python version being used (used for cache busting).
-  cp -R "$CACHE_DIR/.heroku/python-version" .heroku/ &> /dev/null || true
-  # A plain text file which contains the current sqlite3 version being used (used for cache busting).
-  cp -R "$CACHE_DIR/.heroku/python-sqlite3-version" .heroku/ &> /dev/null || true
-  # Any pre-compiled binaries, provided by the buildpack.
-  cp -R "$CACHE_DIR/.heroku/vendor" .heroku/ &> /dev/null || true
+  elif [[ "$CACHED_PYTHON_VERSION" == "$PYTHON_VERSION" ]]; then
+    # A plain text file which contains the current stack being used (used for cache busting).
+    cp -R "$CACHE_DIR/.heroku/python-stack" .heroku/ &> /dev/null || true
+    # A plain text file which contains the current python version being used (used for cache busting).
+    cp -R "$CACHE_DIR/.heroku/python-version" .heroku/ &> /dev/null || true
+    # A plain text file which contains the current sqlite3 version being used (used for cache busting).
+    cp -R "$CACHE_DIR/.heroku/python-sqlite3-version" .heroku/ &> /dev/null || true
+    # Any pre-compiled binaries, provided by the buildpack.
+    cp -R "$CACHE_DIR/.heroku/vendor" .heroku/ &> /dev/null || true
+    # The Python installation.
+    cp -R "$CACHE_DIR/.heroku/python" .heroku/ &> /dev/null || true
 
-  # The Python installation.
-  if [ -f .heroku/python-version ]; then
-    if [ ! "$(cat .heroku/python-version)" = "$PYTHON_VERSION" ]; then
-      puts-step "Found $(cat .heroku/python-version), removing"
-    else
-      cp -R "$CACHE_DIR/.heroku/python" .heroku/ &> /dev/null || true
-      SKIP_INSTALL=1
-    fi
+    SKIP_INSTALL=1
+  else
+    puts-step "Found $CACHED_PYTHON_VERSION, removing"
   fi
 fi
 export SKIP_INSTALL PYTHON_VERSION
@@ -232,19 +239,6 @@ source "$BIN_DIR/steps/hooks/pre_compile"
 mkdir -p "$(dirname "$PROFILE_PATH")"
 # Create the directory for editable source code installation, if it doesn't exist.
 mkdir -p "$BUILD_DIR/.heroku/src"
-
-# On Heroku CI, builds happen in `/app`. Otherwise, on the Heroku platform,
-# they occur in a temp directory. Beacuse Python is not portable, we must create
-# symlinks to emulate that we are operating in `/app` during the build process.
-# This is (hopefully obviously) because apps end up running from `/app` in production.
-if [[ "$BUILD_DIR" != '/app' ]]; then
-    # python expects to reside in /app, so set up symlinks
-    # we will not remove these later so subsequent buildpacks can still invoke it
-    mkdir -p /app/.heroku
-    ln -nsf "$BUILD_DIR/.heroku/python" /app/.heroku/python
-    ln -nsf "$BUILD_DIR/.heroku/vendor" /app/.heroku/vendor
-    # Note: .heroku/src is copied in later.
-fi
 
 # Download / Install Python, from pre-build binaries available on Amazon S3.
 # This step also bootstraps pip / setuptools.
