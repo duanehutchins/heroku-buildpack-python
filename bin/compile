@@ -49,17 +49,20 @@ export VENDOR_URL
 # These variables are used to specify which versions of Python to install by default,
 # as well as prompt the user to upgrade if they are using an un–supported version.
 # Note: When 3.7 lands, I recommend switching to LATEST_36 and LATEST_37.
-DEFAULT_PYTHON_VERSION="python-3.6.6"
 LATEST_36="python-3.6.6"
 LATEST_37="python-3.7.0"
 LATEST_2="python-2.7.15"
+RECOMMENDED_PYTHON_VERSION="$LATEST_36"
+
+# Default to recommended version
+DEFAULT_PYTHON_VERSION="$RECOMMENDED_PYTHON_VERSION"
 
 # Which stack is used (for binary downloading), if none is provided (e.g. outside of Heroku)?
 DEFAULT_PYTHON_STACK="cedar-14"
 # If pip doesn't match this version (the version we install), run the installer.
 PIP_UPDATE="9.0.2"
 
-export DEFAULT_PYTHON_VERSION DEFAULT_PYTHON_STACK PIP_UPDATE LATEST_2 LATEST_36 LATEST_37
+export RECOMMENDED_PYTHON_VERSION DEFAULT_PYTHON_VERSION DEFAULT_PYTHON_STACK PIP_UPDATE LATEST_2 LATEST_36 LATEST_37
 
 # Common Problem Warnings:
 # This section creates a temporary file in which to stick the output of `pip install`.
@@ -67,7 +70,6 @@ export DEFAULT_PYTHON_VERSION DEFAULT_PYTHON_STACK PIP_UPDATE LATEST_2 LATEST_36
 # the user towards resolution of known issues.
 WARNINGS_LOG=$(mktemp)
 export WARNINGS_LOG
-export RECOMMENDED_PYTHON_VERSION=$DEFAULT_PYTHON_VERSION
 
 # The buildpack ships with a few executable tools (e.g. pip-grep, etc).
 # This installs them into the path, so we can execute them directly.

@@ -43,18 +43,18 @@ else
 fi
 
 if [ ! "$SKIP_INSTALL" ]; then
-    puts-step "Installing $PYTHON_VERSION"
+  puts-step "Installing $PYTHON_VERSION"
 
-    # Prepare destination directory.
-    mkdir -p .heroku/python
+  # Prepare destination directory.
+  mkdir -p .heroku/python
 
-    mcount "version.python.$PYTHON_VERSION"
+  mcount "version.python.$PYTHON_VERSION"
 
-    if ! curl "${VENDORED_PYTHON}" -s | tar zxv -C .heroku/python &> /dev/null; then
-      puts-warn "Requested runtime ($PYTHON_VERSION) is not available for this stack ($STACK)."
-      puts-warn "Aborting.  More info: https://devcenter.heroku.com/articles/python-support"
-      exit 1
-    fi
+  if ! curl "${VENDORED_PYTHON}" -s | tar zxv -C .heroku/python &> /dev/null; then
+    puts-warn "Requested runtime ($PYTHON_VERSION) is not available for this stack ($STACK)."
+    puts-warn "Aborting.  More info: https://devcenter.heroku.com/articles/python-support"
+    exit 1
+  fi
 
   # Record for future reference.
   echo "$PYTHON_VERSION" > .heroku/python-version
@@ -64,10 +64,9 @@ if [ ! "$SKIP_INSTALL" ]; then
   hash -r
 fi
 
-
-# If Pip isn't up to date:
+# If Pip isn't installed:
 INSTALLED_PYTHON="/app/.heroku/python/bin/python"
-if [ "$FRESH_PYTHON" ] || [[ ! $(pip --version) == *$PIP_UPDATE* ]]; then
+if [ "$FRESH_PYTHON" ] || [[ ! -f "$BUILD_DIR/.heroku/python/bin/pip" ]]; then
 
   puts-step "Installing pip"
 
