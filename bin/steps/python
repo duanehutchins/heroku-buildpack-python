@@ -66,6 +66,7 @@ fi
 
 
 # If Pip isn't up to date:
+INSTALLED_PYTHON="/app/.heroku/python/bin/python"
 if [ "$FRESH_PYTHON" ] || [[ ! $(pip --version) == *$PIP_UPDATE* ]]; then
 
   puts-step "Installing pip"
@@ -74,7 +75,8 @@ if [ "$FRESH_PYTHON" ] || [[ ! $(pip --version) == *$PIP_UPDATE* ]]; then
   rm -fr "$BUILD_DIR/.heroku/python/lib/python*/site-packages/pip-*"
   rm -fr "$BUILD_DIR/.heroku/python/lib/python*/site-packages/setuptools-*"
 
-  "$BUILD_DIR/.heroku/python/bin/python" "$ROOT_DIR/vendor/get-pip.py" pip=="$PIP_UPDATE" &> /dev/null
+  # Installed via symlinks to maintain python-path
+  "$INSTALLED_PYTHON" "$ROOT_DIR/vendor/get-pip.py" pip=="$PIP_UPDATE" &> /dev/null
   "$BUILD_DIR/.heroku/python/bin/pip" install "$ROOT_DIR/vendor/setuptools-39.0.1-py2.py3-none-any.whl" &> /dev/null
 
 fi

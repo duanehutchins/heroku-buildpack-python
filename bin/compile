@@ -33,7 +33,7 @@ CACHE_DIR=$2
 ENV_DIR=$3
 
 # Export Path variables, for use in sub-scripts.
-export BUILD_DIR CACHE_DIR ENV_DIR
+export BIN_DIR BUILD_DIR CACHE_DIR ENV_DIR
 
 # Set the Buildpack's internet target for downloading Python distributions.
 # The user can provide BUILDPACK_VENDOR_URL to specify a custom target.
@@ -102,7 +102,7 @@ source "$BIN_DIR/warnings"
 # to `/app`.
 # Symlinks are required, since Python is not a portable installation.
 # More on this topic later.
-mkdir -p "BUILD_DIR/.heroku"
+mkdir -p "$BUILD_DIR/.heroku"
 
 # This buildpack programatically generates (or simply copies) a number of files for
 # buildpack machinery: an export script, and a number of `.profile.d` scripts. This
@@ -113,7 +113,7 @@ GUNICORN_PROFILE_PATH="$BUILD_DIR/.profile.d/python.gunicorn.sh"
 WEB_CONCURRENCY_PROFILE_PATH="$BUILD_DIR/.profile.d/WEB_CONCURRENCY.sh"
 
 # We'll need to send these statics to other scripts we `source`.
-export BUILD_DIR CACHE_DIR BIN_DIR PROFILE_PATH EXPORT_PATH
+export PROFILE_PATH EXPORT_PATH
 
 # Python Environment Variables
 # Set Python-specific environment variables, for running Python within the buildpack.
@@ -363,12 +363,13 @@ set_default_env PYTHONHASHSEED random
 # Tell Python to look for Python modules in the /app dir. Don't change this.
 set_default_env PYTHONPATH "\$HOME"
 
-# Python expects to be in "$BUILD_DIR," if at runtime, it is not, set
+# Python expects to be in /app, if at runtime, it is not, set
 # up symlinks… this can occur when the subdir buildpack is used.
 cat <<EOT >> "$PROFILE_PATH"
-if [[ \$HOME != "$BUILD_DIR" ]]; then
-    ln -nsf "\$HOME/.heroku/python" "$BUILD_DIR/.heroku/python"
-    ln -nsf "\$HOME/.heroku/vendor" "$BUILD_DIR/.heroku/vendor"
+if [[ \$HOME != "/app" ]]; then
+    mkdir -p /app/.heroku
+    ln -nsf "\$HOME/.heroku/python" /app/.heroku/python
+    ln -nsf "\$HOME/.heroku/vendor" /app/.heroku/vendor
 fi
 EOT
 
